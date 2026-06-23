@@ -1,0 +1,6 @@
+node_modules/
+stash2.test.yaml
+stash2.updated.yaml
+stash2.updated.preserve-groups.yaml
+*.log
+.env

@@ -1,0 +1,79 @@
+name: Update stash2
+
+# Rebuilds stash2.yaml and pushes the result to the clashpersonal repo.
+#
+# Two ways to trigger (both kept intentionally):
+#   1. Push an updated huahe-nodes.txt -> runs automatically.
+#   2. "Run workflow" button on the Actions tab -> runs on demand.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "huahe-nodes.txt"
+      - "update-stash2-ci.js"
+      - ".github/workflows/update-stash2.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-stash2
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout clash-updater
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild stash2.yaml
+        env:
+          CLASHPERSONAL_TOKEN: ${{ secrets.CLASHPERSONAL_TOKEN }}
+        run: node update-stash2-ci.js
+        # The script downloads the current stash2.yaml as the base, merges the
+        # latest huahe/vv/novas nodes, re-aligns every proxy-group by name, and
+        # writes stash2.updated.yaml. It exits non-zero if validation finds any
+        # empty group or dangling reference, so a broken profile never ships.
+
+      - name: Verify output exists
+        run: |
+          test -f stash2.updated.yaml
+          echo "Generated $(wc -l < stash2.updated.yaml) lines"
+
+      - name: Push to clashpersonal repo
+        env:
+          CLASHPERSONAL_TOKEN: ${{ secrets.CLASHPERSONAL_TOKEN }}
+        run: |
+          if [ -z "$CLASHPERSONAL_TOKEN" ]; then
+            echo "::error::CLASHPERSONAL_TOKEN secret is not set"
+            exit 1
+          fi
+          # Shallow-clone the target repo, overwrite stash2.yaml, commit, push.
+          git clone --depth=1 \
+            "https://x-access-token:${CLASHPERSONAL_TOKEN}@github.com/snakedemon9/clashpersonal.git" \
+            clashpersonal
+          cp stash2.updated.yaml clashpersonal/stash2.yaml
+          cd clashpersonal
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stash2.yaml
+          # Only commit when something actually changed.
+          if git diff --cached --quiet; then
+            echo "No changes to stash2.yaml; nothing to push."
+          else
+            git commit -m "Auto-update stash2 nodes ($(date -u +%Y-%m-%d))"
+            git push
+            echo "Pushed updated stash2.yaml to clashpersonal"
+          fi

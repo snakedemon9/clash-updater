@@ -126,6 +126,7 @@ async function main() {
   removeNonChinaHuaheFromReturnGroup(config["proxy-groups"], huaheNodes);
   removeProxiesByName(config, /网际快车/);
   removeProxyGroupsByName(config, /网际快车/);
+  rebuildRegionGroups(config);
   ensureNoEmptyProxyGroups(config["proxy-groups"]);
 
   doc.set("proxies", config.proxies);
@@ -396,6 +397,58 @@ function replaceGroupByNameFragment(groups, fragment, proxies) {
   const group = groups.find((item) => String(item.name).includes(fragment));
   if (!group || !Array.isArray(group.proxies) || proxies.length === 0) return;
   group.proxies = dedupe(proxies);
+}
+
+// Rebuild every region-specific group so it reliably contains ALL nodes that
+// belong to that region (huahe + 专线 + novas-overseas + anything else), instead
+// of relying on stale name carry-over. A group counts as region-specific when
+// classify() maps its NAME to a concrete region (hk/jp/kr/us/sg/tw/th).
+//
+// For each such group: keep its type/url/interval etc., but replace its proxies
+// list with the names of every defined proxy whose name classifies to the same
+// region. Non-region groups (e.g. 🤖 ChatGPT, ♻️ 自动选择) are left untouched.
+// Sub-group references and built-ins (DIRECT/REJECT) inside a region group are
+// dropped, because a region group should list concrete nodes.
+function rebuildRegionGroups(config) {
+  const REGION_CODES = new Set(["hk", "jp", "kr", "us", "sg", "tw", "th"]);
+
+  // Bucket every defined proxy by the region inferred from its NAME.
+  const byRegion = new Map();
+  for (const region of REGION_CODES) byRegion.set(region, []);
+  for (const proxy of config.proxies) {
+    const name = proxy?.name;
+    if (!name) continue;
+    const region = classify(name);
+    if (REGION_CODES.has(region)) byRegion.get(region).push(name);
+  }
+
+  for (const group of config["proxy-groups"]) {
+    const region = classify(group.name);
+    if (!REGION_CODES.has(region)) continue;          // not a region group
+    if (!Array.isArray(group.proxies)) continue;
+
+    const members = dedupe(byRegion.get(region));
+    if (members.length === 0) continue;                // leave as-is if no nodes
+
+    // Preserve a stable, readable order: keep the group's existing entries that
+    // are still valid regional members first, then append any newly added ones.
+    const ordered = [];
+    const seen = new Set();
+    for (const name of group.proxies) {
+      if (members.includes(name) && !seen.has(name)) {
+        ordered.push(name);
+        seen.add(name);
+      }
+    }
+    for (const name of members) {
+      if (!seen.has(name)) {
+        ordered.push(name);
+        seen.add(name);
+      }
+    }
+    // Entries that no longer classify to this region are simply not carried over.
+    group.proxies = ordered;
+  }
 }
 
 function ensureNoEmptyProxyGroups(groups) {

@@ -6,7 +6,7 @@ const YAML = require("yaml");
 const BASE = "C:/Users/snakedemon/Downloads/Telegram Desktop/stash2 (2).yaml";
 const OUT = "C:/Users/snakedemon/Documents/Codex/2026-05-08/clash/stash2.updated.preserve-groups.yaml";
 const GITHUB_STASH2 = "C:/Users/snakedemon/Documents/Codex/2026-05-08/clashpersonal/stash2.yaml";
-const HUAHE_SOURCE = "C:/Users/snakedemon/Documents/Codex/2026-05-08/clash/huahe-nodes.txt";
+const HUAHE_SOURCE = path.join(__dirname, "huahe-nodes.txt");
 const VV_SUB = "https://s.vvud.us/s/301a9b543fcb14fb6cfebad2b9a521f7";
 const NOVAS_SUB = "https://re.ed-novas.com/2cvme3wa8i/c07efb90a2bf71816296719aea254bda?router=1";
 

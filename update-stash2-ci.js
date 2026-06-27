@@ -128,9 +128,11 @@ async function main() {
   removeProxyGroupsByName(config, /网际快车/);
   rebuildRegionGroups(config);
   ensureNoEmptyProxyGroups(config["proxy-groups"]);
+  repairDanglingRules(config);
 
   doc.set("proxies", config.proxies);
   doc.set("proxy-groups", config["proxy-groups"]);
+  doc.set("rules", config.rules);
 
   fs.mkdirSync(path.dirname(path.resolve(OUT)), { recursive: true });
   const output = String(doc);
@@ -451,6 +453,56 @@ function rebuildRegionGroups(config) {
   }
 }
 
+// Rewrite any rule whose target is neither a defined proxy-group nor a built-in
+// policy to FALLBACK_RULE_TARGET. This heals historical dangling references
+// (e.g. a group was removed but its rules were left pointing at it) so the
+// output never ships a rule that Clash rejects. Idempotent: rules already
+// pointing at a valid target are untouched.
+//
+// Rule parsing notes: the target is normally the 3rd comma-field
+// (TYPE,VALUE,TARGET). MATCH has no explicit target. Some IP rules carry a
+// trailing option like ",no-resolve" — that trailing token is NOT a target.
+const FALLBACK_RULE_TARGET = "🌏 出海媒体";
+const RULE_TAIL_OPTIONS = new Set(["no-resolve", "src"]);
+function repairDanglingRules(config) {
+  if (!Array.isArray(config.rules)) return;
+  const validTargets = new Set([
+    ...config["proxy-groups"].map((g) => g?.name).filter(Boolean),
+    "DIRECT", "REJECT", "REJECT-DROP", "PASS", "GLOBAL", "COMPATIBLE",
+  ]);
+  if (!validTargets.has(FALLBACK_RULE_TARGET)) {
+    // Safety net: if the configured fallback group itself ever disappears, do
+    // nothing rather than rewriting rules to another dangling target.
+    return;
+  }
+
+  let repaired = 0;
+  config.rules = config.rules.map((rule) => {
+    const text = String(rule);
+    if (text.startsWith("MATCH")) return rule;
+    const parts = text.split(",");
+    if (parts.length < 3) return rule;
+    // Logical/composite rules (AND/OR/NOT/RULE-SET/SUB-RULE...) keep their own
+    // structure; only heal simple "TYPE,VALUE,TARGET[,opt]" rules.
+    if (/^(AND|OR|NOT|SUB-RULE|RULE-SET|RULE-SET-URL|SUBSCRIPTION|FAKE-IP|IN-TYPE|PROCESS-NAME)$/i.test(parts[0])) {
+      return rule;
+    }
+    // Determine target field, skipping a trailing no-resolve-style option.
+    let targetIdx = parts.length - 1;
+    if (RULE_TAIL_OPTIONS.has(parts[targetIdx].trim())) targetIdx -= 1;
+    if (targetIdx < 2) return rule;
+    const target = parts[targetIdx].trim();
+    if (validTargets.has(target)) return rule;
+
+    parts[targetIdx] = FALLBACK_RULE_TARGET;
+    repaired += 1;
+    return parts.join(",");
+  });
+  if (repaired > 0) {
+    console.log(`rules: repaired ${repaired} dangling rule target(s) -> "${FALLBACK_RULE_TARGET}"`);
+  }
+}
+
 function ensureNoEmptyProxyGroups(groups) {
   for (const group of groups) {
     if (!Array.isArray(group.proxies)) continue;
@@ -461,13 +513,14 @@ function ensureNoEmptyProxyGroups(groups) {
   }
 }
 
-// Validation: count group entries that reference neither a defined proxy, nor a
-// defined group, nor a built-in. The original script left this to the human; in
-// CI we fail loudly so a broken profile is never auto-pushed.
+// Validation: count references that point to neither a defined proxy, nor a
+// defined group, nor a built-in policy — across BOTH proxy-groups (group->X refs)
+// and rules (rule->target). The original script left this to the human; in CI we
+// fail loudly so a broken profile is never auto-pushed.
 function countDanglingRefs(config) {
   const proxyNames = new Set(config.proxies.map((p) => p?.name).filter(Boolean));
   const groupNames = new Set(config["proxy-groups"].map((g) => g?.name).filter(Boolean));
-  const builtins = new Set(["DIRECT", "REJECT", "PASS", "GLOBAL", "COMPATIBLE"]);
+  const builtins = new Set(["DIRECT", "REJECT", "REJECT-DROP", "PASS", "GLOBAL", "COMPATIBLE", "no-resolve", "src"]);
 
   let dangling = 0;
   for (const group of config["proxy-groups"]) {
@@ -478,6 +531,25 @@ function countDanglingRefs(config) {
         continue;
       }
       if (proxyNames.has(name) || groupNames.has(name) || builtins.has(name)) continue;
+      dangling += 1;
+    }
+  }
+
+  // Also validate rule targets, using the same field logic as repairDanglingRules.
+  if (Array.isArray(config.rules)) {
+    for (const rule of config.rules) {
+      const text = String(rule);
+      if (text.startsWith("MATCH")) continue;
+      const parts = text.split(",");
+      if (parts.length < 3) continue;
+      if (/^(AND|OR|NOT|SUB-RULE|RULE-SET|RULE-SET-URL|SUBSCRIPTION|FAKE-IP|IN-TYPE|PROCESS-NAME)$/i.test(parts[0])) {
+        continue;
+      }
+      let targetIdx = parts.length - 1;
+      if (builtins.has(parts[targetIdx].trim())) targetIdx -= 1;
+      if (targetIdx < 2) continue;
+      const target = parts[targetIdx].trim();
+      if (proxyNames.has(target) || groupNames.has(target) || builtins.has(target)) continue;
       dangling += 1;
     }
   }

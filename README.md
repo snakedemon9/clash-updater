@@ -12,10 +12,9 @@ node .\update-stash2-preserve-groups.js
 The updater:
 
 - reads the base local `stash2 (2).yaml`
-- applies local Huahe SSR nodes from `huahe-nodes.txt`
+- fetches the Huahe Clash subscription and keeps only Stash-supported nodes
 - fetches supported vv nodes
 - fetches novas nodes, splitting return-home and other-country groups
 - filters unsupported Stash proxy types
 - removes WJKC nodes and groups
 - writes the generated profile locally and to the cloned `clashpersonal` repo when present
-

@@ -6,7 +6,7 @@ const YAML = require("yaml");
 const BASE = "C:/Users/snakedemon/Downloads/Telegram Desktop/stash2 (2).yaml";
 const OUT = "C:/Users/snakedemon/Documents/Codex/2026-05-08/clash/stash2.updated.preserve-groups.yaml";
 const GITHUB_STASH2 = "C:/Users/snakedemon/Documents/Codex/2026-05-08/clashpersonal/stash2.yaml";
-const HUAHE_SOURCE = "C:/Users/snakedemon/Documents/Codex/2026-05-08/clash/huahe-nodes.txt";
+const HUAHE_SOURCE = "https://gaga-kddoleramy.cn-shenzhen.fcapp.run/sub/7dd6390d8a51576c/clash";
 const VV_SUB = "https://s.vvud.us/s/301a9b543fcb14fb6cfebad2b9a521f7";
 const NOVAS_SUB = "https://re.ed-novas.com/2cvme3wa8i/c07efb90a2bf71816296719aea254bda?router=1";
 
@@ -27,9 +27,10 @@ async function main() {
   const novasOtherCountryNodes = allNovasNodes.filter((node) => isNovasOtherCountry(node.name));
   const novasNodes = [...novasReturnNodes, ...novasOtherCountryNodes];
 
-  const oldHuaheProxies = config.proxies.filter(
-    (proxy) => proxy.type === "ssr" && /(huaqiduo|yuyuhuaa|polgade)/i.test(String(proxy.server)),
-  );
+  // The old base config contains Huahe as SSR. The provider now returns Clash YAML
+  // with different protocols and endpoints, so treat all legacy SSR entries here
+  // as the old Huahe set and replace their group references by region.
+  const oldHuaheProxies = config.proxies.filter((proxy) => proxy.type === "ssr");
   alignNamesByEndpoint(huaheNodes, oldHuaheProxies);
   const oldHuaheNames = new Set(oldHuaheProxies.map((proxy) => proxy.name));
   const oldVvNames = new Set(config.proxies.filter((proxy) => /^vv/i.test(proxy.name)).map((proxy) => proxy.name));
@@ -246,7 +247,8 @@ function uniqueByName(proxies) {
 
 function nodesForOldName(nodes, oldName, provider) {
   if (provider === "huahe") {
-    return [oldName];
+    const region = classify(oldName);
+    return nodes.filter((node) => classify(node.name) === region).map((node) => node.name);
   }
 
   if (provider === "novas") {

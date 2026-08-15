@@ -63,7 +63,9 @@ async function main() {
 
   // The old base config contains Huahe as SSR. The provider now returns Clash YAML
   // with different protocols and endpoints, so replace all legacy SSR entries.
-  const oldHuaheProxies = config.proxies.filter((proxy) => proxy.type === "ssr");
+  const oldHuaheProxies = config.proxies.filter(
+    (proxy) => proxy.type === "ssr" || /\.huatls\.top$/i.test(String(proxy.server)),
+  );
   alignNamesByEndpoint(huaheNodes, oldHuaheProxies);
   const oldHuaheNames = new Set(oldHuaheProxies.map((proxy) => proxy.name));
   const oldVvNames = new Set(config.proxies.filter((proxy) => /^vv/i.test(proxy.name)).map((proxy) => proxy.name));

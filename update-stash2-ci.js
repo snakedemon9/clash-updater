@@ -68,6 +68,7 @@ async function main() {
   );
   alignNamesByEndpoint(huaheNodes, oldHuaheProxies);
   const oldHuaheNames = new Set(oldHuaheProxies.map((proxy) => proxy.name));
+  const huaheReplacementByOldName = buildOneToOneReplacement(oldHuaheProxies, huaheNodes);
   const oldVvNames = new Set(config.proxies.filter((proxy) => /^vv/i.test(proxy.name)).map((proxy) => proxy.name));
   const oldNovasNames = new Set(
     config.proxies
@@ -101,7 +102,7 @@ async function main() {
 
     for (const name of group.proxies) {
       if (oldHuaheNames.has(name)) {
-        next.push(...nodesForOldName(huaheNodes, name, "huahe"));
+        next.push(...nodesForOldName(huaheNodes, name, "huahe", huaheReplacementByOldName));
       } else if (oldVvNames.has(name)) {
         next.push(...nodesForOldName(vvNodes, name, "vv"));
       } else if (oldNovasNames.has(name)) {
@@ -301,10 +302,10 @@ function uniqueByName(proxies) {
   return [...seen.values()];
 }
 
-function nodesForOldName(nodes, oldName, provider) {
+function nodesForOldName(nodes, oldName, provider, replacementByOldName) {
   if (provider === "huahe") {
-    const region = classify(oldName);
-    return nodes.filter((node) => classify(node.name) === region).map((node) => node.name);
+    const replacement = replacementByOldName?.get(oldName);
+    return replacement ? [replacement] : nodes.length ? [nodes[0].name] : [];
   }
 
   if (provider === "novas") {
@@ -314,6 +315,15 @@ function nodesForOldName(nodes, oldName, provider) {
   const region = classify(oldName);
   const matched = nodes.filter((node) => classify(node.name) === region).map((node) => node.name);
   return matched.length ? matched : nodes.map((node) => node.name);
+}
+
+function buildOneToOneReplacement(oldNodes, newNodes) {
+  const replacements = new Map();
+  if (newNodes.length === 0) return replacements;
+  oldNodes.forEach((oldNode, index) => {
+    replacements.set(oldNode.name, newNodes[index % newNodes.length].name);
+  });
+  return replacements;
 }
 
 function isNovasOtherCountry(name) {

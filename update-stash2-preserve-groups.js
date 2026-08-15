@@ -229,7 +229,7 @@ function isUsableProxy(proxy) {
 }
 
 function isStashSupportedProxyType(type) {
-  return new Set(["ss", "ssr", "vmess", "trojan", "vless", "hysteria", "hysteria2"]).has(String(type).toLowerCase());
+  return new Set(["ss", "ssr", "vmess", "trojan", "vless", "hysteria", "hysteria2", "anytls", "tuic"]).has(String(type).toLowerCase());
 }
 
 function uniqueByName(proxies) {

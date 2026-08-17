@@ -68,7 +68,7 @@ async function main() {
   );
   alignNamesByEndpoint(huaheNodes, oldHuaheProxies);
   const oldHuaheNames = new Set(oldHuaheProxies.map((proxy) => proxy.name));
-  const huaheReplacementByOldName = buildOneToOneReplacement(oldHuaheProxies, huaheNodes);
+  const huaheReplacementByOldName = buildHuaheReplacementMap(oldHuaheProxies, huaheNodes);
   const oldVvNames = new Set(config.proxies.filter((proxy) => /^vv/i.test(proxy.name)).map((proxy) => proxy.name));
   const oldNovasNames = new Set(
     config.proxies
@@ -126,7 +126,7 @@ async function main() {
     proxies: novasOtherCountryNodes.map((proxy) => proxy.name),
   });
   replaceGroupByNameFragment(config["proxy-groups"], "泰国节点", novasOtherCountryNodes.filter((node) => classify(node.name) === "th").map((node) => node.name));
-  removeNonChinaHuaheFromReturnGroup(config["proxy-groups"], huaheNodes);
+  removeHuaheFromReturnGroup(config["proxy-groups"], huaheNodes);
   removeProxiesByName(config, /网际快车/);
   removeProxyGroupsByName(config, /网际快车/);
   rebuildRegionGroups(config);
@@ -304,8 +304,9 @@ function uniqueByName(proxies) {
 
 function nodesForOldName(nodes, oldName, provider, replacementByOldName) {
   if (provider === "huahe") {
-    const replacement = replacementByOldName?.get(oldName);
-    return replacement ? [replacement] : nodes.length ? [nodes[0].name] : [];
+    if (!replacementByOldName?.has(oldName)) return [];
+    const replacement = replacementByOldName.get(oldName);
+    return replacement ? [replacement] : [];
   }
 
   if (provider === "novas") {
@@ -317,12 +318,32 @@ function nodesForOldName(nodes, oldName, provider, replacementByOldName) {
   return matched.length ? matched : nodes.map((node) => node.name);
 }
 
-function buildOneToOneReplacement(oldNodes, newNodes) {
+function buildHuaheReplacementMap(oldNodes, newNodes) {
   const replacements = new Map();
   if (newNodes.length === 0) return replacements;
-  oldNodes.forEach((oldNode, index) => {
-    replacements.set(oldNode.name, newNodes[index % newNodes.length].name);
-  });
+  const byRegion = new Map();
+  for (const node of newNodes) {
+    const region = classify(node.name);
+    const bucket = byRegion.get(region) || [];
+    bucket.push(node.name);
+    byRegion.set(region, bucket);
+  }
+  const cursors = new Map();
+  let fallbackIndex = 0;
+  for (const oldNode of oldNodes) {
+    const region = classify(oldNode.name);
+    const bucket = byRegion.get(region);
+    if (bucket?.length) {
+      const index = cursors.get(region) || 0;
+      replacements.set(oldNode.name, bucket[index % bucket.length]);
+      cursors.set(region, index + 1);
+    } else if (region === "other") {
+      replacements.set(oldNode.name, newNodes[fallbackIndex % newNodes.length].name);
+      fallbackIndex += 1;
+    } else {
+      replacements.set(oldNode.name, null);
+    }
+  }
   return replacements;
 }
 
@@ -363,15 +384,11 @@ function upsertGroup(groups, group) {
   groups.splice(returnGroupIndex >= 0 ? returnGroupIndex + 1 : groups.length, 0, group);
 }
 
-function removeNonChinaHuaheFromReturnGroup(groups, huaheNodes) {
+function removeHuaheFromReturnGroup(groups, huaheNodes) {
   const huaheNames = new Set(huaheNodes.map((node) => node.name));
   const group = groups.find((item) => String(item.name).includes("回国节点"));
   if (!group || !Array.isArray(group.proxies)) return;
-
-  group.proxies = group.proxies.filter((name) => {
-    if (!huaheNames.has(name)) return true;
-    return !/非大陆专用/.test(String(name));
-  });
+  group.proxies = group.proxies.filter((name) => !huaheNames.has(name));
 }
 
 function removeProxiesByName(config, pattern) {

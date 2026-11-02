@@ -92,6 +92,12 @@ async function main() {
     type: "select",
     proxies: novasOtherCountryNodes.map((proxy) => proxy.name),
   });
+  upsertGroup(config["proxy-groups"], {
+    name: "vv",
+    type: "select",
+    proxies: vvNodes.map((proxy) => proxy.name),
+  });
+  addVvNodesToRegionGroups(config["proxy-groups"], vvNodes);
   replaceGroupByNameFragment(config["proxy-groups"], "\u6cf0\u56fd\u8282\u70b9", novasOtherCountryNodes.filter((node) => classify(node.name) === "th").map((node) => node.name));
   removeHuaheFromReturnGroup(config["proxy-groups"], huaheNodes);
   removeProxiesByName(config, /网际快车/);
@@ -105,6 +111,7 @@ async function main() {
   const output = String(doc);
   fs.writeFileSync(OUT, output, "utf8");
   if (fs.existsSync(path.dirname(GITHUB_STASH2))) {
+    fs.mkdirSync(path.dirname(GITHUB_STASH2), { recursive: true });
     fs.writeFileSync(GITHUB_STASH2, output, "utf8");
   }
 
@@ -375,6 +382,23 @@ function replaceGroupByNameFragment(groups, fragment, proxies) {
   const group = groups.find((item) => String(item.name).includes(fragment));
   if (!group || !Array.isArray(group.proxies) || proxies.length === 0) return;
   group.proxies = dedupe(proxies);
+}
+
+function addVvNodesToRegionGroups(groups, vvNodes) {
+  const regionCodes = new Set(["hk", "jp", "kr", "us", "sg", "tw", "th", "ca", "mx", "vn", "my", "tr"]);
+  const byRegion = new Map();
+  for (const node of vvNodes) {
+    const region = classify(node.name);
+    const bucket = byRegion.get(region) || [];
+    bucket.push(node.name);
+    byRegion.set(region, bucket);
+  }
+  for (const group of groups) {
+    if (!Array.isArray(group.proxies)) continue;
+    const region = classify(group.name);
+    if (!regionCodes.has(region)) continue;
+    group.proxies = dedupe([...group.proxies, ...(byRegion.get(region) || [])]);
+  }
 }
 
 function ensureNoEmptyProxyGroups(groups) {

@@ -103,6 +103,7 @@ async function main() {
   removeProxiesByName(config, /网际快车/);
   removeProxyGroupsByName(config, /网际快车/);
   completeHuaheGroups(config["proxy-groups"], huaheNodes);
+  require("./optimize-groups")(config, huaheNodes, vvNodes);
   ensureNoEmptyProxyGroups(config["proxy-groups"]);
 
   doc.set("proxies", config.proxies);

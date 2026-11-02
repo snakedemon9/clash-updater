@@ -137,6 +137,7 @@ async function main() {
   removeProxyGroupsByName(config, /网际快车/);
   rebuildRegionGroups(config);
   completeHuaheGroups(config["proxy-groups"], huaheNodes);
+  require("./optimize-groups")(config, huaheNodes, vvNodes);
   ensureNoEmptyProxyGroups(config["proxy-groups"]);
   repairDanglingRules(config);
 

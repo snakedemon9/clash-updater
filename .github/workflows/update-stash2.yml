@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - "update-stash2-preserve-groups.js"
+      - "optimize-groups.js"
       - "update-stash2-ci.js"
       - "update-stash2-ci.js"
       - ".github/workflows/update-stash2.yml"

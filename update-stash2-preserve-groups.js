@@ -102,6 +102,7 @@ async function main() {
   removeHuaheFromReturnGroup(config["proxy-groups"], huaheNodes);
   removeProxiesByName(config, /网际快车/);
   removeProxyGroupsByName(config, /网际快车/);
+  completeHuaheGroups(config["proxy-groups"], huaheNodes);
   ensureNoEmptyProxyGroups(config["proxy-groups"]);
 
   doc.set("proxies", config.proxies);
@@ -398,6 +399,27 @@ function addVvNodesToRegionGroups(groups, vvNodes) {
     const region = classify(group.name);
     if (!regionCodes.has(region)) continue;
     group.proxies = dedupe([...group.proxies, ...(byRegion.get(region) || [])]);
+  }
+}
+
+function completeHuaheGroups(groups, nodes) {
+  const names = new Set(nodes.map(node => node.name));
+  const direct = new Set(nodes.filter(node => /直连|direct/i.test(node.name)).map(node => node.name));
+  for (const group of groups) {
+    if (!Array.isArray(group.proxies)) continue;
+    const region = classify(group.name);
+    if (/手动选择|手动切换|自动选择/.test(group.name)) {
+      group.proxies = dedupe([...group.proxies, ...nodes.map(node => node.name)]);
+    } else if (region !== "other" && !/回国/.test(group.name)) {
+      group.proxies = dedupe([
+        ...group.proxies.filter(name => !names.has(name)),
+        ...nodes.filter(node => classify(node.name) === region).map(node => node.name),
+      ]);
+    }
+    if (group.type === "url-test") {
+      group.proxies = group.proxies.filter(name => !direct.has(name));
+    }
+    if (/回国/.test(group.name)) group.proxies = group.proxies.filter(name => !names.has(name));
   }
 }
 

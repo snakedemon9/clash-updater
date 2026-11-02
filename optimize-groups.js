@@ -29,8 +29,22 @@ function optimizeGroups(config, huahe, vv) {
       const hasPolicies = group.proxies.some(name => config['proxy-groups'].some(g => g.name === name));
       if (hasPolicies || /手动/.test(group.name)) group.proxies = unique([...group.proxies, 'vv']);
     }
-    if (group.type === 'url-test') group.proxies = group.proxies.filter(name => !direct.has(name));
-    if (/回国/.test(group.name)) group.proxies = group.proxies.filter(name => !huaheNames.has(name));
+    group.proxies = group.proxies.filter(name => !huaheNames.has(name));
+  }
+  const isolated = [
+    { name: 'Huahe选择', type: 'select', proxies: huahe.map(p => p.name) },
+    { name: 'Huahe测速', type: 'url-test', url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, proxies: huahe.filter(p => !direct.has(p.name)).map(p => p.name) },
+  ];
+  for (const definition of isolated) {
+    const index = config['proxy-groups'].findIndex(g => g.name === definition.name);
+    if (index < 0) config['proxy-groups'].push(definition);
+    else config['proxy-groups'][index] = definition;
+  }
+  // Provider groups are selectable on demand, never included in shared speed tests.
+  for (const group of config['proxy-groups']) {
+    if (group.type === 'select' && /手动选择|手动切换|全局设置/.test(group.name)) {
+      group.proxies = unique([...group.proxies, ...isolated.map(g => g.name)]);
+    }
   }
 }
 

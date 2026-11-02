@@ -46,6 +46,19 @@ function optimizeGroups(config, huahe, vv) {
       group.proxies = unique([...group.proxies, ...isolated.map(g => g.name)]);
     }
   }
+  const groups = config['proxy-groups'];
+  const groupNames = new Set(groups.map(g => g.name));
+  const endpoints = groups.filter(g => !g.proxies.some(n => groupNames.has(n)) && !/广告拦截|应用净化|battle\.net/.test(g.name));
+  const endpointNames = endpoints.map(g => g.name);
+  const manual = groups.find(g => /手动选择|手动切换/.test(g.name));
+  if (manual) manual.proxies = unique([...manual.proxies, ...endpointNames]);
+  for (const group of groups) {
+    if (group.type !== 'select' || endpoints.includes(group)) continue;
+    group.proxies = unique([...group.proxies, ...endpointNames.filter(n => n !== group.name)]);
+    if (manual && group !== manual && !/广告拦截|应用净化/.test(group.name)) {
+      group.proxies = unique([...group.proxies, manual.name]);
+    }
+  }
 }
 
 module.exports = optimizeGroups;

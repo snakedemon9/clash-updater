@@ -29,7 +29,7 @@ const BASE_URL = process.env.BASE_URL ||
   "https://raw.githubusercontent.com/snakedemon9/clashpersonal/main/stash2.yaml";
 const OUT = process.env.OUT || path.join(__dirname, "stash2.updated.yaml");
 const HUAHE_SOURCE = process.env.HUAHE_SOURCE || "https://gaga-kddoleramy.cn-shenzhen.fcapp.run/sub/7dd6390d8a51576c/clash";
-const VV_SUB = process.env.VV_SUB || "https://s.vvud.us/s/301a9b543fcb14fb6cfebad2b9a521f7";
+const VV_SUB = process.env.VV_SUB || "https://g.vvud.us/s/301a9b543fcb14fb6cfebad2b9a521f7";
 const NOVAS_SUB = process.env.NOVAS_SUB || "https://re.ed-novas.com/2cvme3wa8i/c07efb90a2bf71816296719aea254bda?router=1";
 const TOKEN = process.env.CLASHPERSONAL_TOKEN || "";
 
